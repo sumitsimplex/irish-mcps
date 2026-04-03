@@ -1,0 +1,6 @@
+name = "met-eireann-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-03-08"
+
+[observability]
+enabled = true

@@ -1,0 +1,9 @@
+name = "irish-rail-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-03-08"
+
+# Needed for URL, fetch, etc — already available by default in Workers
+# compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
