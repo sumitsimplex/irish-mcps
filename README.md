@@ -20,6 +20,7 @@ Open-source [Model Context Protocol](https://modelcontextprotocol.io) servers fo
 | [`cso-mcp`](./cso-mcp/) | Statistics from Ireland's Central Statistics Office | [CSO Open Data API](https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset) |
 | [`oireachtas-mcp`](./oireachtas-mcp/) | Bills, debates, members, and votes from the Irish Parliament | [Oireachtas Open Data API](https://api.oireachtas.ie) |
 | [`property-price-mcp`](./property-price-mcp/) | Residential property sale prices across Ireland | [Property Price Register](https://www.propertypriceregister.ie) |
+| [`hse-service-finder-mcp`](./hse-service-finder-mcp/) | HSE hospitals, emergency departments, injury units, maternity and paediatric facilities | [HSE Service List](https://www.hse.ie/eng/services/list/) |
 
 ---
 
@@ -35,8 +36,9 @@ mcps/
 ├── eirgrid-mcp/         # EirGrid Smart Grid
 ├── dublin-bikes-mcp/    # Dublin Bikes
 ├── cso-mcp/             # Central Statistics Office
-├── oireachtas-mcp/      # Houses of the Oireachtas
-└── property-price-mcp/  # Property Price Register
+├── oireachtas-mcp/          # Houses of the Oireachtas
+├── property-price-mcp/      # Property Price Register
+└── hse-service-finder-mcp/  # HSE hospitals & services
 ```
 
 Each server follows the same pattern:

@@ -1,0 +1,10 @@
+name = "hse-service-finder-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-03-08"
+
+routes = [
+  { pattern = "hse-service-finder.irishmcp.ie/*", zone_name = "irishmcp.ie" }
+]
+
+[observability]
+enabled = true
