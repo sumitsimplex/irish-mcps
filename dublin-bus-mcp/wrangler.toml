@@ -1,0 +1,10 @@
+name = "dublin-bus-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-03-08"
+
+routes = [
+  { pattern = "dublin-bus.irishmcp.ie/*", zone_name = "irishmcp.ie" }
+]
+
+[observability]
+enabled = true
