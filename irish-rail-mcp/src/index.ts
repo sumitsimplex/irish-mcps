@@ -37,6 +37,49 @@ async function railGet(path: string, params: Record<string, string> = {}): Promi
   return res.text();
 }
 
+// Static metadata for key stations — used when real-time returns no trains
+// (mainline stops can have 60–120 min gaps between services)
+const STATION_INFO: Record<string, { type: string; line: string; keyRoutes: string[] }> = {
+  "MONVN": {
+    type: "Mainline",
+    line: "Dublin Heuston–Portlaoise–Limerick/Cork intercity",
+    keyRoutes: [
+      "Dublin Heuston (~45 min, direct)",
+      "Portarlington (~10 min)",
+      "Portlaoise (~20 min)",
+      "Limerick (~1h 35 min)",
+      "Cork (~2h 20 min)",
+    ],
+  },
+  "KDARE": {
+    type: "Mainline",
+    line: "Dublin Heuston–Limerick/Cork intercity",
+    keyRoutes: ["Dublin Heuston (~35 min)", "Newbridge (~7 min)", "Monasterevin (~15 min)", "Portlaoise (~35 min)"],
+  },
+  "NBRGE": {
+    type: "Mainline",
+    line: "Dublin Heuston–Limerick/Cork intercity",
+    keyRoutes: ["Dublin Heuston (~40 min)", "Kildare (~7 min)", "Monasterevin (~15 min)"],
+  },
+  "PTRTN": {
+    type: "Mainline",
+    line: "Dublin Heuston–Portlaoise–Galway/Westport intercity",
+    keyRoutes: ["Dublin Heuston (~1h 10 min)", "Monasterevin (~15 min)", "Portlaoise (~25 min)", "Galway (~2h)"],
+  },
+  "PTLSE": {
+    type: "Mainline",
+    line: "Dublin Heuston–Portlaoise–Cork/Limerick/Galway intercity",
+    keyRoutes: ["Dublin Heuston (~1h 10 min)", "Monasterevin (~20 min)", "Kildare (~35 min)"],
+  },
+  "SALNS": {
+    type: "Commuter",
+    line: "Dublin Heuston–Kildare commuter (Naas served by Sallins station)",
+    keyRoutes: ["Dublin Heuston (~35 min)", "Hazelhatch (~15 min)", "Kildare (~10 min)"],
+  },
+  "CNLLY": { type: "Intercity/DART/Suburban hub", line: "All northern/eastern routes", keyRoutes: ["Belfast (~2h)", "Drogheda (~35 min)", "Dundalk (~1h)", "DART northside"] },
+  "HSTON": { type: "Intercity hub", line: "All western/southern routes", keyRoutes: ["Cork (~2h 30 min)", "Limerick (~2h)", "Galway (~2h 10 min)", "Monasterevin (~45 min)", "Kildare (~35 min)"] },
+};
+
 // Station name → code lookup (most common stations)
 const STATION_CODES: Record<string, string> = {
   "connolly": "CNLLY", "dublin connolly": "CNLLY",
@@ -152,8 +195,9 @@ async function getAllStations(): Promise<string> {
 }
 
 async function getStationTrains(stationCode: string, minsAhead = 90): Promise<string> {
+  const code = stationCode.toUpperCase();
   const xml = await railGet("getStationDataByCodeXML", {
-    StationCode: stationCode.toUpperCase(),
+    StationCode: code,
     NumMins: String(Math.min(minsAhead, 90)),
   });
   const trains = parseObjects(xml, "objStationData", [
@@ -162,11 +206,22 @@ async function getStationTrains(stationCode: string, minsAhead = 90): Promise<st
     "Duein", "Late", "Exparrival", "Expdepart", "Scharrival", "Schdepart",
     "Direction", "Traintype", "Locationtype",
   ]);
+
+  const meta = STATION_INFO[code];
+  const metaLines: string[] = meta
+    ? [
+        `Station ${code} — ${meta.type} on the ${meta.line}`,
+        `Typical routes: ${meta.keyRoutes.join(" | ")}`,
+        "",
+      ]
+    : [];
+
   if (!trains.length) {
-    return `No trains scheduled at ${stationCode} in the next ${minsAhead} minutes.`;
+    const note = `No trains scheduled at ${code} in the next ${minsAhead} minutes (mainline services run every 60–120 min; check outside this window).`;
+    return metaLines.length ? [...metaLines, note].join("\n") : note;
   }
-  const stationName = trains[0]?.Stationfullname || stationCode;
-  const lines = [`${trains.length} train(s) at ${stationName} in the next ${minsAhead} mins:`, ""];
+  const stationName = trains[0]?.Stationfullname || code;
+  const lines = [...metaLines, `${trains.length} train(s) at ${stationName} in the next ${minsAhead} mins:`, ""];
   for (const t of trains) {
     const late = parseInt(t.Late) > 0 ? ` (${t.Late} min late)` : "";
     const type = t.Traintype === "DART" ? "DART" : t.Traintype === "Train" ? "Mainline" : t.Traintype;
@@ -271,11 +326,11 @@ async function naturalLanguageQuery(query: string): Promise<string> {
 const TOOLS = [
   {
     name: "query",
-    description: "Natural language query for Irish Rail data. Ask about trains at a station, current trains, all stations, or train movements.",
+    description: "Natural language query for Irish Rail data. Ask about trains at a station, current trains, all stations, or train movements. Monasterevin has its own station (MONVN) with direct Dublin Heuston mainline services.",
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: 'e.g. "trains at Dublin Connolly", "current DART trains", "all stations", "movements for E123"' },
+        query: { type: "string", description: 'e.g. "trains at Dublin Connolly", "trains at Monasterevin", "current DART trains", "all stations", "movements for E123"' },
       },
       required: ["query"],
     },
@@ -291,7 +346,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        station_code: { type: "string", description: "Station code e.g. CNLLY (Connolly), HSTON (Heuston), MHIDE (Malahide)" },
+        station_code: { type: "string", description: "Station code e.g. CNLLY (Connolly), HSTON (Heuston), MHIDE (Malahide), MONVN (Monasterevin)" },
         mins_ahead: { type: "number", description: "Minutes ahead to look, 1–90 (default 90)" },
       },
       required: ["station_code"],
