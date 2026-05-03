@@ -30,7 +30,10 @@ async function apiGet(path: string, params: Record<string, string> = {}): Promis
 // API has no server-side filters — paginate via after_cursor to gather records
 // for client-side filtering. Cap total scan to keep latency bounded.
 const PAGE_SIZE = 1000;
-const MAX_PAGES_FILTERED = 10; // up to 10,000 records scanned when filtering
+// 20 pages = 20,000 most-recent records scanned when filtering by location.
+// Smaller towns (e.g. Monasterevin) may have 1-2 sales/month so 10 pages often
+// missed their records entirely; 20 pages catches ~6 months of all-Ireland data.
+const MAX_PAGES_FILTERED = 20;
 
 async function fetchPaged(
   sort: string,
@@ -68,12 +71,47 @@ async function fetchPaged(
 
 // --- Helpers ---------------------------------------------------------------
 
+// Well-known towns that won't appear in COUNTIES but need county context
+const TOWN_COUNTIES: Record<string, string> = {
+  "monasterevin": "Kildare",
+  "newbridge": "Kildare", "naas": "Kildare", "maynooth": "Kildare",
+  "celbridge": "Kildare", "leixlip": "Kildare", "athy": "Kildare",
+  "clane": "Kildare", "sallins": "Kildare", "kilcullen": "Kildare",
+  "navan": "Meath", "trim": "Meath", "ashbourne": "Meath",
+  "drogheda": "Louth", "dundalk": "Louth",
+  "athlone": "Westmeath", "mullingar": "Westmeath",
+  "tullamore": "Offaly", "birr": "Offaly",
+  "portlaoise": "Laois", "portarlington": "Laois",
+  "tralee": "Kerry", "killarney": "Kerry",
+  "ennis": "Clare", "shannon": "Clare",
+  "castlebar": "Mayo", "ballina": "Mayo",
+  "letterkenny": "Donegal",
+  "cavan": "Cavan", "monaghan": "Monaghan",
+  "carlow": "Carlow", "kilkenny": "Kilkenny",
+  "wexford": "Wexford", "gorey": "Wexford",
+  "wicklow": "Wicklow", "bray": "Wicklow", "greystones": "Wicklow",
+  "dungarvan": "Waterford", "waterford": "Waterford",
+  "thurles": "Tipperary", "clonmel": "Tipperary",
+  "sligo": "Sligo", "roscommon": "Roscommon",
+  "longford": "Longford", "leitrim": "Leitrim",
+};
+
 function findCounty(query: string): string {
   const q = query.toLowerCase();
   for (const c of COUNTIES) {
     if (q.includes(c.toLowerCase())) return c;
   }
   return "";
+}
+
+function inferCounty(location: string): string {
+  const q = location.toLowerCase().trim();
+  if (TOWN_COUNTIES[q]) return TOWN_COUNTIES[q];
+  // Try prefix match for multi-word locations like "Main Street Monasterevin"
+  for (const [town, county] of Object.entries(TOWN_COUNTIES)) {
+    if (q.includes(town)) return county;
+  }
+  return findCounty(location);
 }
 
 function formatPrice(price: number): string {
@@ -418,7 +456,30 @@ async function searchSales(
       const truncNote = truncated
         ? ` (scanned the ${scanned.toLocaleString()} most recent of ${total.toLocaleString()} total records — older sales may exist; try narrowing with a county)`
         : ` (scanned ${scanned.toLocaleString()} of ${total.toLocaleString()} records)`;
-      return `No matching sales found for "${where}"${truncNote}.`;
+      let msg = `No matching sales found for "${where}"${truncNote}.`;
+      // Provide county-level context so the caller isn't left with nothing
+      if (location && !county) {
+        const fallbackCounty = inferCounty(where);
+        try {
+          if (!fallbackCounty) throw new Error("unknown county");
+          const { matches: countyMatches } = await fetchPaged("date-desc", (r: any) => {
+            const cty = (r.county || "").toLowerCase();
+            return cty.includes(fallbackCounty.toLowerCase());
+          }, 10, 5);
+          if (countyMatches.length) {
+            const prices = countyMatches.map((r: any) => parsePrice(r.price_in_euros)).filter((p: number) => p > 0);
+            if (prices.length) {
+              const avg = Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length);
+              const sorted = [...prices].sort((a: number, b: number) => a - b);
+              const med = sorted[Math.floor(sorted.length / 2)];
+              msg += `\n\nCounty ${fallbackCounty} context (${prices.length} recent sales): avg ${formatPrice(avg)}, median ${formatPrice(med)}, range ${formatPrice(sorted[0])}–${formatPrice(sorted[sorted.length - 1])}.`;
+            }
+          }
+        } catch {
+          // county fallback is best-effort
+        }
+      }
+      return msg;
     }
     return "No sales found matching your criteria.";
   }
