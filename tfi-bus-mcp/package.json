@@ -1,0 +1,27 @@
+{
+  "name": "tfi-bus-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Transport for Ireland nationwide bus MCP server — Cloudflare Worker",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "loader": "tsx loader/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@supabase/supabase-js": "^2.49.8",
+    "csv-parse": "^5.6.0",
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250307.0",
+    "@types/node": "^22.15.21",
+    "@types/unzipper": "^0.10.11",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.16.1"
+  }
+}
